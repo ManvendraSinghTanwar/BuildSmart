@@ -3,9 +3,8 @@ import streamlit as st
 import os
 import requests
 
-# Together AI API Key (set in environment variable)
-api_key = os.getenv("TOGETHER_API_KEY1")
-TOGETHER_API_URL = "https://api.together.xyz/v1/chat/completions"
+# OpenAI API URL
+OPENAI_API_URL = "https://api.openai.com/v1/chat/completions"
 
 
 
@@ -14,7 +13,7 @@ def get_base64_image(image_path):
         return base64.b64encode(img_file.read()).decode()
 
 def generate_ai_explanation(client, risk_level, delay_days, input_data):
-    """Generates an AI-based explanation using Together AI (LLaMA 2-70B)"""
+    """Generates an AI-based explanation using OpenAI."""
     prompt = f"""
     A metro project has the following characteristics:
     - City: {input_data['City'].values[0]}
@@ -34,13 +33,13 @@ def generate_ai_explanation(client, risk_level, delay_days, input_data):
     Explain the results in simple terms, highlighting the key factors contributing to the risk level and delay. Also, suggest mitigation strategies.
     """
     response = client.chat.completions.create(
-        model="meta-llama/Llama-3.3-70B-Instruct-Turbo",
-        messages=[{"role": "user", "content": prompt}]
+        model="gpt-4o-mini",
+        messages=[{"role": "user", "content": prompt}],
     )
     st.write(response.choices[0].message.content)
 
 def generate_detection_explanation(client, detected_objects, detection_type):
-    """Generates an AI-based explanation for detected objects using Together AI (LLaMA 2-70B)"""
+    """Generates an AI-based explanation for detected objects using OpenAI."""
     prompt = f"Explain the following detected objects in simple terms for {detection_type}:\n\n"
     for obj in detected_objects:
         prompt += f"- Class: {obj['class_name']}, Confidence: {obj['confidence']:.2f}, Bounding Box: {obj['bbox']}\n"
@@ -49,27 +48,33 @@ def generate_detection_explanation(client, detected_objects, detection_type):
     elif detection_type == "Risk Detection":
         prompt += "\nExplain what each term means, why it is important, and what exactly are the risks in the image. Also, suggest any necessary actions or precautions."
     response = client.chat.completions.create(
-        model="meta-llama/Llama-3.3-70B-Instruct-Turbo",
-        messages=[{"role": "user", "content": prompt}]
+        model="gpt-4o-mini",
+        messages=[{"role": "user", "content": prompt}],
     )
     return response.choices[0].message.content
 
 def get_chatbot_response(user_input):
-    """Calls Together AI for chatbot responses"""
+    """Calls OpenAI for chatbot responses"""
+    # Get API key at runtime to ensure .env is loaded
+    api_key = os.getenv("OPENAI_API_KEY")
+    
+    if not api_key:
+        return "Error: OPENAI_API_KEY not found in environment variables"
+    
     headers = {
         "Authorization": f"Bearer {api_key}",
-        "Content-Type": "application/json"
+        "Content-Type": "application/json",
     }
 
     payload = {
-        "model": "meta-llama/Llama-3.3-70B-Instruct-Turbo",  
+        "model": "gpt-4o-mini",
         "messages": [{"role": "user", "content": user_input}],
         "max_tokens": 150,
-        "temperature": 0.7
+        "temperature": 0.7,
     }
 
     try:
-        response = requests.post(TOGETHER_API_URL, json=payload, headers=headers)
+        response = requests.post(OPENAI_API_URL, json=payload, headers=headers)
         response.raise_for_status()
         data = response.json()
         return data["choices"][0]["message"]["content"].strip()

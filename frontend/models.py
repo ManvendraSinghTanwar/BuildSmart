@@ -1,7 +1,7 @@
 import os
 import joblib
 from xgboost import XGBClassifier
-from together import Together
+from openai import OpenAI
 
 def load_models_and_encoders():
     # Determine the absolute path of the current script
@@ -30,11 +30,11 @@ def load_models_and_encoders():
         raise FileNotFoundError(f"Encoder file not found: {encoder_path}")
     label_encoders = joblib.load(encoder_path)
 
-    # Initialize the Together API client
-    api_key = os.getenv("TOGETHER_API_KEY1")
+    # Initialize the OpenAI client
+    api_key = os.getenv("OPENAI_API_KEY")
     if not api_key:
-        raise EnvironmentError("TOGETHER_API_KEY1 environment variable not set.")
-    client = Together(api_key=api_key)
+        raise EnvironmentError("OPENAI_API_KEY environment variable not set.")
+    client = OpenAI(api_key=api_key)
 
 
 

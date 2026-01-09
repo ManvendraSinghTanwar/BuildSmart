@@ -59,7 +59,7 @@ def dashboard_page():
                 else:
                     st.error("Failed to get a prediction. Please try again.")
 
-def metro_risk_prediction_page(classifier, label_encoders, client):
+def metro_risk_prediction_page(classifier, regressor, label_encoders, client):
     st.subheader("🚆 Metro Project Risk Level Prediction")
     with st.form("metro_risk_form"):
         city = st.selectbox("City", ["Delhi", "Mumbai", "Bangalore", "Hyderabad", "Chennai", "Kolkata"])
@@ -88,7 +88,8 @@ def metro_risk_prediction_page(classifier, label_encoders, client):
             risk_prediction = classifier.predict(input_data)[0]
             risk_label = label_encoders["Risk Level"].inverse_transform([risk_prediction])[0]
             st.success(f"✅ **Predicted Risk Level:** {risk_label}")
-            delay_days = 45.23  # Replace with actual delay prediction if available
+            delay_days = regressor.predict(input_data)[0]
+            st.info(f"⏱️ **Predicted Delay Duration:** {delay_days:.2f} days")
             st.subheader("🤖 AI Explanation")
             explanation = generate_ai_explanation(client, risk_label, delay_days, input_data)
             st.write(explanation)

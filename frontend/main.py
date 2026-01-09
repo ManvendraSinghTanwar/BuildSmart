@@ -86,7 +86,7 @@ if st.session_state.page == "Home":
     home_page()
 
 elif st.session_state.page == "Metro Risk Prediction":
-    metro_risk_prediction_page(classifier, label_encoders, client)
+    metro_risk_prediction_page(classifier, regressor, label_encoders, client)
 elif st.session_state.page == "Supplier Recommendation":
     supplier_recommendation_page()
 elif st.session_state.page == "Chatbot":
