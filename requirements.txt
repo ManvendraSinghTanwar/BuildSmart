@@ -7,6 +7,7 @@ ultralytics
 Pillow
 together
 python-dotenv
+openai
 opencv-python-headless
 scikit-learn
 numpy
