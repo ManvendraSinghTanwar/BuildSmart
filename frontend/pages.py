@@ -371,7 +371,7 @@ def risk_detection_page(client):
             frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
             frame_placeholder.image(frame_rgb, channels="RGB")
         cap.release()
-        cv2.destroyAllWindows()
+        # cv2.destroyAllWindows() removed - not needed in Streamlit Cloud (headless environment)
 
 def delay_report_generator_page():
     st.subheader("📄 Delay Report Generator")
