@@ -8,8 +8,6 @@ from xgboost import XGBClassifier
 import os
 import joblib
 import tempfile
-from streamlit_webrtc import webrtc_streamer, VideoProcessorBase, WebRtcMode
-import av
 import numpy as np
 import cv2  # Add this import for webcam functionality
 import torch
@@ -381,43 +379,36 @@ def risk_detection_page(client):
                         st.error("⚠️ No objects detected. Try another image.")
     
     with tab2:
-        # Live camera detection using WebRTC
-        st.subheader("📹 Live Camera Detection")
-        
-        class RiskDetectionProcessor(VideoProcessorBase):
-            def __init__(self):
-                self.model = YOLO(os.path.join(base_dir, "../backend/PPE/models/best_2.pt"))
-            
-            def recv(self, frame):
-                img = frame.to_ndarray(format="bgr24")
-                
-                # Run YOLO detection
-                results = self.model(img)
-                
-                # Draw bounding boxes
+        st.subheader("📹 Real-Time Risk Detection using Webcam")
+        if "camera_active" not in st.session_state:
+            st.session_state.camera_active = False
+        col1, col2 = st.columns(2)
+        with col1:
+            if st.button("▶️ Start Webcam Detection"):
+                st.session_state.camera_active = True
+        with col2:
+            if st.button("⏹️ Stop Webcam Detection"):
+                st.session_state.camera_active = False
+        if st.session_state.camera_active:
+            cap = cv2.VideoCapture(0)  # Open webcam
+            frame_placeholder = st.empty()
+            while cap.isOpened() and st.session_state.camera_active:
+                ret, frame = cap.read()
+                if not ret:
+                    break
+                model = YOLO(os.path.join(base_dir, "../backend/PPE/models/best_2.pt"))
+                results = model(frame)
                 for r in results:
                     for box in r.boxes:
                         x1, y1, x2, y2 = map(int, box.xyxy[0])
                         label = box.cls[0]
                         confidence = box.conf[0]
-                        class_name = self.model.names[int(label)]
-                        label_text = f"{class_name}: {confidence:.2f}"
-                        
-                        cv2.rectangle(img, (x1, y1), (x2, y2), (0, 255, 0), 2)
-                        cv2.putText(img, label_text, (x1, y1 - 10), 
-                                   cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
-                
-                return av.VideoFrame.from_ndarray(img, format="bgr24")
-        
-        webrtc_streamer(
-            key="risk-detection",
-            mode=WebRtcMode.SENDRECV,
-            video_processor_factory=RiskDetectionProcessor,
-            media_stream_constraints={"video": True, "audio": False},
-            async_processing=True,
-        )
-        
-        st.info("💡 Click 'START' to begin live detection.")
+                        label_text = f"{model.names[int(label)]}: {confidence:.2f}"
+                        cv2.rectangle(frame, (x1, y1), (x2, y2), (0, 255, 0), 2)
+                        cv2.putText(frame, label_text, (x1, y1 - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
+                frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+                frame_placeholder.image(frame_rgb, channels="RGB")
+            cap.release()
 
 def delay_report_generator_page():
     st.subheader("📄 Delay Report Generator")
