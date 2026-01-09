@@ -8,6 +8,9 @@ from xgboost import XGBClassifier
 import os
 import joblib
 import tempfile
+from streamlit_webrtc import webrtc_streamer, VideoProcessorBase, WebRtcMode
+import av
+import numpy as np
 import cv2  # Add this import for webcam functionality
 import torch
 from ultralytics import YOLO
@@ -290,88 +293,131 @@ def blueprint_detection_page(client):
                     st.error("⚠️ No objects detected. Try another image.")
 
 def risk_detection_page(client):
-    st.subheader("📸 Upload a Construction Site Image for Risk Detection")
-    uploaded_file = st.file_uploader("Choose an image...", type=["jpg", "png", "jpeg"])
-    predict_folder = os.path.join(base_dir, "runs/detect/predictRisk")
-    os.makedirs(predict_folder, exist_ok=True)
-    if uploaded_file:
-        st.image(uploaded_file, caption="Uploaded Image", use_container_width=True)
-        if st.button("🚀 Detect Risk"):
-            with st.spinner("Running detection..."):
-                temp_dir = tempfile.mkdtemp()
-                image_path = os.path.join(temp_dir, uploaded_file.name)
-                with open(image_path, "wb") as f:
-                    f.write(uploaded_file.getbuffer())
-                unique_id = uuid.uuid4().hex[:8]
-                timestamp = int(time.time())
-                new_image_name = f"BuildSmart_detected_risk_{unique_id}.png"
-                new_image_path = os.path.join(predict_folder, new_image_name)
-                model = YOLO(os.path.join(base_dir, "../backend/PPE/models/best_2.pt"))
-                results = model.predict(image_path, save=True)
-                saved_images = sorted(
-                    [f for f in os.listdir("runs/detect") if f.startswith("predict")], 
-                    key=lambda x: os.path.getctime(os.path.join("runs/detect", x)), 
-                    reverse=True
-                )
-                if saved_images:
-                    latest_predict_folder = os.path.join("runs/detect", saved_images[0])
-                    detected_images = [f for f in os.listdir(latest_predict_folder) if f.endswith((".png", ".jpg", ".jpeg"))]
-                    if detected_images:
-                        old_image_path = os.path.join(latest_predict_folder, detected_images[0])
-                        os.rename(old_image_path, new_image_path)
-                        st.image(Image.open(new_image_path), caption="Annotated Image", use_container_width=True)
-                        st.write("### 📌 Detected Objects:")
-                        detected_objects = []
-                        for result in results:
-                            for box in result.boxes:
-                                class_id = int(box.cls)
-                                class_name = result.names[class_id]
-                                confidence = float(box.conf)
-                                bbox = box.xyxy.tolist()
-                                detected_objects.append({
-                                    "class_name": class_name,
-                                    "confidence": confidence,
-                                    "bbox": bbox
-                                })
-                                st.write(f"🔹 *Class:* {class_name}, *Confidence:* {confidence:.2f}, *Bounding Box:* {bbox}")
-                        st.subheader("🤖 AI Explanation for Detected Objects")
-                        explanation = generate_detection_explanation(client, detected_objects, "Risk Detection")
-                        st.write(explanation)
+    # Custom CSS for tabs following the yellow/black theme
+    st.markdown("""
+    <style>
+    .stTabs [data-baseweb="tab-list"] {
+        gap: 20px;
+    }
+    .stTabs [data-baseweb="tab"] {
+        height: 60px;
+        white-space: pre-wrap;
+        background-color: #f1c232;
+        border-radius: 8px;
+        color: black;
+        font-size: 25px;
+        font-weight: bold;
+        padding: 10px 30px;
+        transition: all 0.3s ease;
+        border: 2px solid #d4a017;
+    }
+    .stTabs [aria-selected="true"] {
+        background-color: #d4a017;
+        color: white;
+        box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+    }
+    .stTabs [data-baseweb="tab"]:hover {
+        background-color: #d4a017;
+        color: white;
+        transform: translateY(-2px);
+    }
+    </style>
+    """, unsafe_allow_html=True)
+    
+    # Create tabs for different detection modes
+    tab1, tab2 = st.tabs(["📸 Image Upload Detection", "📹 Live Camera Detection"])
+    
+    with tab1:
+        st.subheader("📸 Upload a Construction Site Image for Risk Detection")
+        uploaded_file = st.file_uploader("Choose an image...", type=["jpg", "png", "jpeg"])
+        predict_folder = os.path.join(base_dir, "runs/detect/predictRisk")
+        os.makedirs(predict_folder, exist_ok=True)
+        if uploaded_file:
+            st.image(uploaded_file, caption="Uploaded Image", use_container_width=True)
+            if st.button("🚀 Detect Risk"):
+                with st.spinner("Running detection..."):
+                    temp_dir = tempfile.mkdtemp()
+                    image_path = os.path.join(temp_dir, uploaded_file.name)
+                    with open(image_path, "wb") as f:
+                        f.write(uploaded_file.getbuffer())
+                    unique_id = uuid.uuid4().hex[:8]
+                    timestamp = int(time.time())
+                    new_image_name = f"BuildSmart_detected_risk_{unique_id}.png"
+                    new_image_path = os.path.join(predict_folder, new_image_name)
+                    model = YOLO(os.path.join(base_dir, "../backend/PPE/models/best_2.pt"))
+                    results = model.predict(image_path, save=True)
+                    saved_images = sorted(
+                        [f for f in os.listdir("runs/detect") if f.startswith("predict")], 
+                        key=lambda x: os.path.getctime(os.path.join("runs/detect", x)), 
+                        reverse=True
+                    )
+                    if saved_images:
+                        latest_predict_folder = os.path.join("runs/detect", saved_images[0])
+                        detected_images = [f for f in os.listdir(latest_predict_folder) if f.endswith((".png", ".jpg", ".jpeg"))]
+                        if detected_images:
+                            old_image_path = os.path.join(latest_predict_folder, detected_images[0])
+                            os.rename(old_image_path, new_image_path)
+                            st.image(Image.open(new_image_path), caption="Annotated Image", use_container_width=True)
+                            st.write("### 📌 Detected Objects:")
+                            detected_objects = []
+                            for result in results:
+                                for box in result.boxes:
+                                    class_id = int(box.cls)
+                                    class_name = result.names[class_id]
+                                    confidence = float(box.conf)
+                                    bbox = box.xyxy.tolist()
+                                    detected_objects.append({
+                                        "class_name": class_name,
+                                        "confidence": confidence,
+                                        "bbox": bbox
+                                    })
+                                    st.write(f"🔹 *Class:* {class_name}, *Confidence:* {confidence:.2f}, *Bounding Box:* {bbox}")
+                            st.subheader("🤖 AI Explanation for Detected Objects")
+                            explanation = generate_detection_explanation(client, detected_objects, "Risk Detection")
+                            st.write(explanation)
+                        else:
+                            st.error("Error: Could not find the saved prediction image.")
                     else:
-                        st.error("Error: Could not find the saved prediction image.")
-                else:
-                    st.error("⚠️ No objects detected. Try another image.")
-    st.subheader("📹 Real-Time Risk Detection using Webcam")
-    if "camera_active" not in st.session_state:
-        st.session_state.camera_active = False
-    col1, col2 = st.columns(2)
-    with col1:
-        if st.button("Start Webcam Detection"):
-            st.session_state.camera_active = True
-    with col2:
-        if st.button("Stop Webcam Detection"):
-            st.session_state.camera_active = False
-    if st.session_state.camera_active:
-        cap = cv2.VideoCapture(0)  # Open webcam
-        frame_placeholder = st.empty()
-        while cap.isOpened() and st.session_state.camera_active:
-            ret, frame = cap.read()
-            if not ret:
-                break
-            model = YOLO(os.path.join(base_dir, "../backend/PPE/models/best_2.pt"))
-            results = model(frame)
-            for r in results:
-                for box in r.boxes:
-                    x1, y1, x2, y2 = map(int, box.xyxy[0])
-                    label = box.cls[0]
-                    confidence = box.conf[0]
-                    label_text = f"{model.names[int(label)]}: {confidence:.2f}"
-                    cv2.rectangle(frame, (x1, y1), (x2, y2), (0, 255, 0), 2)
-                    cv2.putText(frame, label_text, (x1, y1 - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
-            frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-            frame_placeholder.image(frame_rgb, channels="RGB")
-        cap.release()
-        # cv2.destroyAllWindows() removed - not needed in Streamlit Cloud (headless environment)
+                        st.error("⚠️ No objects detected. Try another image.")
+    
+    with tab2:
+        # Live camera detection using WebRTC
+        st.subheader("📹 Live Camera Detection")
+        
+        class RiskDetectionProcessor(VideoProcessorBase):
+            def __init__(self):
+                self.model = YOLO(os.path.join(base_dir, "../backend/PPE/models/best_2.pt"))
+            
+            def recv(self, frame):
+                img = frame.to_ndarray(format="bgr24")
+                
+                # Run YOLO detection
+                results = self.model(img)
+                
+                # Draw bounding boxes
+                for r in results:
+                    for box in r.boxes:
+                        x1, y1, x2, y2 = map(int, box.xyxy[0])
+                        label = box.cls[0]
+                        confidence = box.conf[0]
+                        class_name = self.model.names[int(label)]
+                        label_text = f"{class_name}: {confidence:.2f}"
+                        
+                        cv2.rectangle(img, (x1, y1), (x2, y2), (0, 255, 0), 2)
+                        cv2.putText(img, label_text, (x1, y1 - 10), 
+                                   cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
+                
+                return av.VideoFrame.from_ndarray(img, format="bgr24")
+        
+        webrtc_streamer(
+            key="risk-detection",
+            mode=WebRtcMode.SENDRECV,
+            video_processor_factory=RiskDetectionProcessor,
+            media_stream_constraints={"video": True, "audio": False},
+            async_processing=True,
+        )
+        
+        st.info("💡 Click 'START' to begin live detection.")
 
 def delay_report_generator_page():
     st.subheader("📄 Delay Report Generator")
