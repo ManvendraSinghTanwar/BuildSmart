@@ -61,6 +61,24 @@ def get_chatbot_response(user_input):
     if not api_key:
         return "Error: OPENAI_API_KEY not found in environment variables"
     
+    system_prompt = """You are a construction and metro project assistant for BuildSmart, a construction risk analysis and delay prediction platform. 
+    
+    You ONLY answer questions related to:
+    - Construction, building, and civil engineering topics
+    - Construction projects, metro projects, and infrastructure
+    - Construction sites, site management, and site safety
+    - Risk analysis and delay prediction
+    - PPE (Personal Protective Equipment) detection and safety
+    - Architectural blueprint analysis
+    - Construction supply chain and workforce optimization
+    - Project management and cost estimation
+    - Construction materials, equipment, and techniques
+    - BuildSmart features and capabilities
+    
+    If the user asks about topics OUTSIDE of construction or BuildSmart (like general knowledge, cooking, sports, entertainment, etc.), politely decline and redirect them to ask about construction or the BuildSmart platform.
+    
+    Keep responses concise, professional, and helpful."""
+    
     headers = {
         "Authorization": f"Bearer {api_key}",
         "Content-Type": "application/json",
@@ -68,8 +86,11 @@ def get_chatbot_response(user_input):
 
     payload = {
         "model": "gpt-4o-mini",
-        "messages": [{"role": "user", "content": user_input}],
-        "max_tokens": 150,
+        "messages": [
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": user_input}
+        ],
+        "max_tokens": 1000,
         "temperature": 0.7,
     }
 
